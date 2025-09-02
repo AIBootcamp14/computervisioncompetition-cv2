@@ -405,12 +405,22 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# zip files
-*.gz
-
 # baseline code
 baseline.ipynb
 
+# image files
+*.jpg
+
+# raw data
+meta.csv
+sample_submission.csv
+train.csv
+
 # large files
+# zip file
+data.tar.gz
+
+# output files
+output/*.csv
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,python,visualstudiocode,git,jupyternotebooks,pycharm
