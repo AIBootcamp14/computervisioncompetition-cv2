@@ -405,11 +405,16 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# zip files
-*.gz
-
 # baseline code
 baseline.ipynb
+
+# image files
+*.jpg
+
+# raw data
+meta.csv
+sample_submission.csv
+train.csv
 
 # large files
 
