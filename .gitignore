@@ -423,4 +423,11 @@ data.tar.gz
 # output files
 output/*.csv
 
+# 학습 및 추론 결과물
+model/
+output/
+
+
+
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,python,visualstudiocode,git,jupyternotebooks,pycharm
