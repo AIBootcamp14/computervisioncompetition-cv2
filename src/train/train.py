@@ -328,22 +328,22 @@ def run_train(
         oof_df.to_csv(oof_path, index=False)
         print(f"\n- OOF predictions saved: {oof_path}")
         
-        # OOF 기반 오차 행렬 시각화
-        print("\nOOF 기반 오차 행렬을 생성합니다.")
-        cm = confusion_matrix(oof_true, oof_preds)
-        plt.figure(figsize=(12, 10))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                    xticklabels=sorted(df['target'].unique()),
-                    yticklabels=sorted(df['target'].unique()))
-        plt.title('OOF Confusion Matrix')
-        plt.xlabel('Predicted Label')
-        plt.ylabel('True Label')
+        # # OOF 기반 오차 행렬 시각화
+        # print("\nOOF 기반 오차 행렬을 생성합니다.")
+        # cm = confusion_matrix(oof_true, oof_preds)
+        # plt.figure(figsize=(12, 10))
+        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+        #             xticklabels=sorted(df['target'].unique()),
+        #             yticklabels=sorted(df['target'].unique()))
+        # plt.title('OOF Confusion Matrix')
+        # plt.xlabel('Predicted Label')
+        # plt.ylabel('True Label')
         
-        # 그래프를 파일로 저장
-        cm_path = os.path.join(arch_dir, "oof_confusion_matrix.png")
-        plt.savefig(cm_path)
-        print(f"- Confusion Matrix saved to: {cm_path}")
-        plt.clf()
+        # # 그래프를 파일로 저장
+        # cm_path = os.path.join(arch_dir, "oof_confusion_matrix.png")
+        # plt.savefig(cm_path)
+        # print(f"- Confusion Matrix saved to: {cm_path}")
+        # plt.clf()
 
     else:
         print("\n- OOF 결과가 생성되지 않았습니다. (데이터가 비어있음)")
