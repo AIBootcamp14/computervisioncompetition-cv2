@@ -4,13 +4,13 @@ import numpy as np
 
 ######################################################
 
-# 앙상블할 모델과 가중치
+# OOF 앙상블 시 가중치 (선택 사항)
+# 각 모델의 예측 성능을 보고 수동으로 가중치를 조정할 수 있습니다.
+# 예를 들어, {"model_A": 0.5, "model_B": 0.5}
 models = {
     "coatnet_1_rw_224": 0.2,
     "convnextv2_base": 0.5,
     "tf_efficientnet_b4_ns": 0.3,
-    # "convnext_base": 0.0,
-    # "swinv2_base_window12to24_192to384": 0.0,
 }
 
 #######################################################
@@ -19,9 +19,12 @@ model_names = [m for m, w in models.items() if w > 0]
 if not model_names:
     raise ValueError("No valid model with weight > 0")
 
-ss_path = "/root/project/cv_competition/data/sample_submission.csv" 
+ss_path = "/root/project/cv_competition/data/sample_submission.csv"
 paths = [f"output/{m}.csv" for m in model_names]
 out_path = f"output/ensemble_({'+'.join(model_names)}).csv"
+
+# OOF 예측 파일 경로
+oof_paths = [f"output/{m}_oof.csv" for m in model_names]
 
 # sample submission과 ID 순서 통일
 ss = pd.read_csv(ss_path)
