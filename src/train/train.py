@@ -17,6 +17,9 @@ from timm.data import resolve_model_data_config
 from timm.loss import LabelSmoothingCrossEntropy
 from timm.utils import ModelEmaV2
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from src.data.transform import (
     build_train_tf_base, build_train_tf_heavy, build_valid_tf,
@@ -30,13 +33,11 @@ def _resolve_img_size(model, user_opt: str) -> int:
     data_cfg = resolve_model_data_config(model)
     _, in_h, in_w = data_cfg['input_size']
 
-    # input: int
     if user_opt.isdigit():
         forced = int(user_opt)
         warnings.warn(f"Train stage: Override img_size to {forced} (model default: {in_h}x{in_w})", UserWarning)
         return forced
 
-    # input: auto / auto-long
     if in_h != in_w:
         if user_opt == "auto-long":
             size = max(in_h, in_w)
@@ -55,9 +56,6 @@ def build_model(arch: str = 'resnet50', num_classes: int = 17):
 
 
 def list_models(filter_name: str = "", pretrained: bool = True):
-    """
-    timm에서 사용 가능한 모델 아키텍처(arch) 목록을 반환
-    """
     pattern = f"*{filter_name}*" if filter_name and not any(ch in filter_name for ch in "*?[]") else filter_name
     names = timm.list_models(filter=pattern, pretrained=pretrained)
     return names
@@ -70,7 +68,7 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(seed) 
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 
 def to_device(batch, device):
@@ -88,7 +86,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device, ema: ModelEmaV2
         optimizer.zero_grad(set_to_none=True)
         with autocast(device_type='cuda', dtype=torch.float16, enabled=torch.cuda.is_available()):
             logits = model(xb)
-            loss = criterion(logits, yb)        
+            loss = criterion(logits, yb)
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
@@ -108,7 +106,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device, ema: ModelEmaV2
 @torch.no_grad()
 def validate(model, loader, criterion, device):
     model.eval()
-    epoch_loss, all_true, all_pred = 0.0, [], []
+    epoch_loss, all_true, all_pred, all_probs = 0.0, [], [], []
     for xb, yb in tqdm(loader, desc="Valid", leave=False):
         xb, yb = to_device((xb, yb), device)
         with autocast(device_type='cuda', dtype=torch.float16, enabled=torch.cuda.is_available()):
@@ -118,10 +116,12 @@ def validate(model, loader, criterion, device):
         preds = torch.argmax(logits, dim=1).cpu().numpy()
         all_pred.extend(preds.tolist())
         all_true.extend(yb.cpu().numpy().tolist())
+        all_probs.append(torch.softmax(logits, dim=1).cpu().numpy())
 
     avg_loss = epoch_loss / len(loader.dataset)
     f1 = macro_f1(all_true, all_pred)
-    return avg_loss, f1
+    all_probs = np.concatenate(all_probs, axis=0)
+    return avg_loss, f1, all_true, all_pred, all_probs
 
 
 class EarlyStopper:
@@ -169,12 +169,18 @@ def run_train(
 ):
     set_seed(42)
 
-    arch_dir = os.path.join(model_dir, arch)    # save model under model/{model}/
+    arch_dir = os.path.join(model_dir, arch)
     os.makedirs(arch_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)  # save submission csv to output folder
+    os.makedirs(output_dir, exist_ok=True)
 
     skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
     fold_logs = []
+    
+    # OOF 결과를 저장할 리스트 초기화
+    oof_ids = []
+    oof_preds = []
+    oof_true = []
+    oof_probs = []
 
     for fold, (tr_idx, va_idx) in enumerate(skf.split(df, df['target']), start=1):
         print(f"\n========== Fold {fold}/{n_folds} ==========")
@@ -184,7 +190,6 @@ def run_train(
         model = build_model(arch=arch, num_classes=num_classes).to(device)
         img_size = _resolve_img_size(model, img_size_opt)
 
-        # image augmentation
         train_tf_base = build_train_tf_base(img_size)
         train_tf_heavy = build_train_tf_heavy(img_size)
         valid_tf_local = build_valid_tf(img_size)
@@ -228,7 +233,7 @@ def run_train(
         )
 
         train_loader = DataLoader(
-            train_ds, batch_size=batch_size, shuffle=False,  # shuffle=False when using sampler
+            train_ds, batch_size=batch_size, shuffle=False,
             sampler=sampler, num_workers=num_workers, pin_memory=True
         )
         valid_loader = DataLoader(
@@ -247,11 +252,13 @@ def run_train(
         history = []
 
         stopper = EarlyStopper(patience=early_stopping_patience, min_delta=early_stopping_min_delta) \
-                  if use_early_stopping else None
+                      if use_early_stopping else None
+        
+        best_preds, best_true, best_probs = None, None, None
 
         for epoch in range(1, epochs + 1):
             tr_loss, tr_f1 = train_one_epoch(model, train_loader, criterion, optimizer, device, ema=ema)
-            va_loss, va_f1 = validate(ema.module, valid_loader, criterion, device)
+            va_loss, va_f1, va_true, va_pred, va_probs = validate(ema.module, valid_loader, criterion, device)
             scheduler.step()
 
             print(f"[Fold {fold}] Epoch {epoch:02d} | "
@@ -268,6 +275,7 @@ def run_train(
             # save best checkpoint for each fold
             if va_f1 > best_f1:
                 best_f1 = va_f1
+                best_preds, best_true, best_probs = va_pred, va_true, va_probs
                 torch.save({
                     "model_state": ema.module.state_dict(),
                     "arch": arch,
@@ -281,6 +289,13 @@ def run_train(
                 print(f"[Fold {fold}] Early stopping triggered at epoch {epoch}. "
                       f"(best_valid_f1={best_f1:.4f})")
                 break
+        
+        # OOF 데이터 저장
+        # `validate` 함수가 `np.concatenate`를 반환하므로 리스트에 추가
+        oof_ids.extend(va_df['ID'].values)
+        oof_true.extend(best_true)
+        oof_preds.extend(best_preds)
+        oof_probs.append(best_probs)
 
         if save_fold_logs:
             log_path = os.path.join(arch_dir, f"train_log_fold{fold}.csv")
@@ -295,6 +310,43 @@ def run_train(
         del model, optimizer, scheduler, ema, train_loader, valid_loader, train_ds, valid_ds
         gc.collect()
         torch.cuda.empty_cache()
+
+    # 최종 OOF 데이터프레임 생성 및 저장
+    if oof_ids:
+        oof_df = pd.DataFrame({
+            'ID': oof_ids,
+            'target': oof_true,
+            'pred': oof_preds
+        })
+        
+        # 확률값 컬럼 추가 (prob_0, prob_1, ...)
+        all_probs_array = np.concatenate(oof_probs, axis=0)
+        for i in range(all_probs_array.shape[1]):
+            oof_df[f'prob_{i}'] = all_probs_array[:, i]
+
+        oof_path = os.path.join(arch_dir, "oof_predictions.csv")
+        oof_df.to_csv(oof_path, index=False)
+        print(f"\n- OOF predictions saved: {oof_path}")
+        
+        # OOF 기반 오차 행렬 시각화
+        print("\nOOF 기반 오차 행렬을 생성합니다.")
+        cm = confusion_matrix(oof_true, oof_preds)
+        plt.figure(figsize=(12, 10))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                    xticklabels=sorted(df['target'].unique()),
+                    yticklabels=sorted(df['target'].unique()))
+        plt.title('OOF Confusion Matrix')
+        plt.xlabel('Predicted Label')
+        plt.ylabel('True Label')
+        
+        # 그래프를 파일로 저장
+        cm_path = os.path.join(arch_dir, "oof_confusion_matrix.png")
+        plt.savefig(cm_path)
+        print(f"- Confusion Matrix saved to: {cm_path}")
+        plt.clf()
+
+    else:
+        print("\n- OOF 결과가 생성되지 않았습니다. (데이터가 비어있음)")
 
     # save summary
     summary_path = os.path.join(arch_dir, "train_summary.json")
