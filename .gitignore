@@ -423,6 +423,7 @@ data.tar.gz
 # output files
 output/*.csv
 
+
 # 학습 및 추론 결과물
 model/
 output/
