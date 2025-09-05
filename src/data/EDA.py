@@ -21,7 +21,6 @@ from PIL import Image
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, f1_score
 
-#%%
 # EDA
 data_path = '../../data'
 
@@ -52,7 +51,7 @@ plt.show()
 
 #%%
 # test 이미지 살펴보기 (s2 부터 n2개)
-s2 = 1400
+s2 = 500
 n2 = 100
 
 plt.figure(figsize=(30,150))
@@ -93,21 +92,76 @@ print(class_counts)
 # class 1, 13, 14 에 불균형 존재 확인
 
 #%%
-# 문서 중 가장 큰 사이즈 확인
-longest_sizes = []
+# 문서 이미지 해상도 확인
+train_df = pd.read_csv(os.path.join(data_path, "train.csv"))
+train_longest_sizes = []
 
 for fp in tqdm(train_df['ID']):
     img = cv2.imread(os.path.join(train_img_path,fp))
     h, w = img.shape[:2]
-    longest_sizes.append(max(h, w))
+    train_longest_sizes.append(max(h, w))
 
-print("최대 이미지 크기:", max(longest_sizes))
-print("최소 이미지 크기:", min(longest_sizes))
-print("평균 이미지 크기:", sum(longest_sizes)/len(longest_sizes))
+print("최대 이미지 해상도:", max(train_longest_sizes))
+print("최소 이미지 해상도:", min(train_longest_sizes))
+print("평균 이미지 해상도:", sum(train_longest_sizes)/len(train_longest_sizes))
 
-# 최대 이미지 크기: 753
-# 최소 이미지 크기: 512
-# 평균 이미지 크기: 596.31
+# train:
+# 최대 이미지 해상도: 753
+# 최소 이미지 해상도: 512
+# 평균 이미지 해상도: 596.31
+
+test = pd.read_csv(os.path.join(data_path, "sample_submission.csv"))
+test_longest_sizes = []
+
+for fp in tqdm(test['ID']):
+    img = cv2.imread(os.path.join(test_img_path,fp))
+    h, w = img.shape[:2]
+    test_longest_sizes.append(max(h, w))
+
+print("최대 이미지 해상도:", max(test_longest_sizes))
+print("최소 이미지 해상도:", min(test_longest_sizes))
+print("평균 이미지 해상도:", sum(test_longest_sizes)/len(test_longest_sizes))
+
+# test:
+# 최대 이미지 해상도: 763
+# 최소 이미지 해상도: 512
+# 평균 이미지 해상도: 595.70
+
+
+#%%
+import matplotlib.pyplot as plt
+
+# train height, width
+train_heights, train_widths = [], []
+for fp in tqdm(train_df['ID']):
+    img = cv2.imread(os.path.join(train_img_path, fp))
+    h, w = img.shape[:2]
+    train_heights.append(h)
+    train_widths.append(w)
+
+plt.figure(figsize=(6,6))
+plt.scatter(train_widths, train_heights, c="blue", alpha=0.4, s=10)
+plt.xlabel("Width (pixels)")
+plt.ylabel("Height (pixels)")
+plt.title("Train Image Resolution (Width vs Height)")
+plt.grid(True)
+plt.show()
+
+# test height, width
+test_heights, test_widths = [], []
+for fp in tqdm(test['ID']):
+    img = cv2.imread(os.path.join(test_img_path, fp))
+    h, w = img.shape[:2]
+    test_heights.append(h)
+    test_widths.append(w)
+
+plt.figure(figsize=(6,6))
+plt.scatter(test_widths, test_heights, c="red", alpha=0.4, s=10)
+plt.xlabel("Width (pixels)")
+plt.ylabel("Height (pixels)")
+plt.title("Test Image Resolution (Width vs Height)")
+plt.grid(True)
+plt.show()
 
 #%%
 # label noise 확인
@@ -173,3 +227,38 @@ for i, r in train_df.iterrows():
 ## 시도해 볼 해결책 4) 문서형태가 7,14번일 때는 의도적인 훼손을 줄이기(특히 헤더를 의도적으로 많이 살려보기)
 
 # %%
+# timm 라이브러리에 학습된 이미지셋의 사이즈 확인 및 512 이상 pretrain 모델 확인
+# timm 라이브러리에 학습된 이미지셋의 사이즈/정규화 확인 (>=512만)
+import timm
+import pandas as pd
+from timm.data import resolve_model_data_config
+
+models_ge512 = []
+
+for name in timm.list_models(pretrained=True):
+    try:
+        cfg = timm.get_pretrained_cfg(name)
+        _, h, w = cfg.input_size
+        if (753 >= h >= 512) or (753 >= w >= 512):
+            models_ge512.append((name, (h, w)))
+    except Exception as e:
+        pass
+
+rows = []
+for name, size in models_ge512:
+    try:
+        m = timm.create_model(name, pretrained=True, num_classes=1000, features_only=False)
+        data_cfg = resolve_model_data_config(m)
+        mean = tuple(map(float, data_cfg["mean"]))
+        std  = tuple(map(float, data_cfg["std"]))
+        rows.append((name, size, mean, std))
+    except Exception as e:
+        rows.append((name, size, "ERROR", str(e)))
+
+df = pd.DataFrame(
+    [
+        {"name": n, "input_size": s, "mean": m, "std": d}
+        for n, s, m, d in rows if m != "ERROR"
+    ]
+).sort_values("name")
+print(df)

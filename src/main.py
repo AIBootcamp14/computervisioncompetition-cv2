@@ -19,30 +19,56 @@ def parse_minor_classes(s: str) -> tuple[int, ...]:
 
 
 def main():
+    """
+    CLI 예시
+
+    1) 학습 + 추론 + 확률 저장
+    python -m src.main --arch convnextv2_base --epochs 70 --batch_size 32 --img_size auto --tta --do_infer --save_proba
+
+    2) timm 모델 목록 조회
+    python -m src.main --list_models resnet
+    """
+
     ap = argparse.ArgumentParser(description="Train & Ensemble Inference entry")
     # 모델/학습 파라미터
-    ap.add_argument("--arch", type=str, default="resnet50", help="timm model (e.g. resnet50)")
+    ap.add_argument("--arch", type=str, default="resnet50", help="timm model (e.g., resnet50)")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch_size", type=int, default=32)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--n_folds", type=int, default=5)
-    ap.add_argument("--infer_batch_size", type=int, default=64)
     ap.add_argument("--num_workers", type=int, default=4)
     ap.add_argument("--minor_classes", type=str, default="1,13,14",
                     help='소수 클래스 목록을 콤마로: "1,13,14"')
     ap.add_argument("--p_heavy_minor", type=float, default=0.7)
-    ap.add_argument("--tta", action="store_true", help="enable simple TTA (flip/rot90)")
 
-    # 실행 옵션
+    # 학습시 실행 옵션
     ap.add_argument("--no_early_stop", action="store_true", help="disable early stopping")
-    ap.add_argument("--patience", type=int, default=5, help="early stopping patience (epochs)")
+    ap.add_argument("--patience", type=int, default=10, help="early stopping patience (epochs)")
     ap.add_argument("--min_delta", type=float, default=0.001, help="required f1 improvement to reset patience")
-    ap.add_argument("--img_size", type=str, default="auto", help='image size: "auto"(default), "auto-long"(padded to square using longer side)), or int(e.g., "512")')
+    ## img size 설정
+    ap.add_argument("--img_size", type=str, default="auto",
+                    help='image size: "auto"(default), "auto-long"(pad to square using longer side), or int(e.g., "512")')
+    ## gradient accumulation
+    ap.add_argument("--accum_steps", type=int, default=1,
+                    help="gradient accumulation steps (e.g., accum_steps4 with batch_size=8 gives effective 32)")
+    ## FocalLoss 옵션
+    ap.add_argument("--use_focal", action="store_true", help="use FocalLoss instead of LabelSmoothingCE")
+    ap.add_argument("--focal_gamma", type=float, default=1.5, help="FocalLoss gamma (recommend 1.5~2.0)")
+    ## OOF 폴드별 저장 옵션
+    ap.add_argument("--save_oof_folds", action="store_true", help="save per-fold OOF CSVs under output/oof/")
+
+    # 추론시 실행 옵션
     ap.add_argument("--do_infer", action="store_true", help="run inference after training")
-    ap.add_argument("--list_models", type=str, default=None, help='search timm model (e.g. "--list_models resnet")')
     ap.add_argument("--save_proba", action="store_true", help="save per-class probabilities to CSV alongside predictions")
 
-    # 경로 옵션(필요시 변경 가능)
+    # 추론 파라미터
+    ap.add_argument("--infer_batch_size", type=int, default=32)
+    ap.add_argument("--tta", action="store_true", help="enable weighted TTA (flip/rotations + header/center views)")
+
+    # 기타 실행 옵션
+    ap.add_argument("--list_models", type=str, default=None, help='search timm model (e.g. "--list_models resnet")')
+
+    # 경로 옵션(필요시 변경)
     ap.add_argument("--root_dir", type=str, default=".")
     ap.add_argument("--data_dir", type=str, default="data")
     ap.add_argument("--model_dir", type=str, default="model")
@@ -70,6 +96,7 @@ def main():
 
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "oof"), exist_ok=True)  # OOF 저장 폴더
 
     # 데이터 불러오기 (train.csv: ID, target 컬럼 가정)
     df = pd.read_csv(train_csv_path)
@@ -79,7 +106,7 @@ def main():
     # 소수 클래스 정의
     minor_classes = parse_minor_classes(args.minor_classes)
 
-    # fold별 체크포인트 + train_summary 저장
+    # fold별 체크포인트 + summary + OOF 저장
     summary_path = run_train(
         df=df,
         device=device,
@@ -98,7 +125,11 @@ def main():
         save_fold_logs=False,  # csv 파일로 로그 필요시 True
         use_early_stopping=not args.no_early_stop,
         early_stopping_patience=args.patience,
-        early_stopping_min_delta=args.min_delta
+        early_stopping_min_delta=args.min_delta,
+        accum_steps=args.accum_steps,
+        use_focal=args.use_focal,
+        focal_gamma=args.focal_gamma,
+        save_oof_folds=args.save_oof_folds
     )
 
     # 앙상블 추론
@@ -107,7 +138,7 @@ def main():
             "inference",
             "--arch", args.arch,
             "--test_dir", test_dir,
-            "--summary_path", summary_path,     # model/{arch}/train_summary.json
+            "--summary_path", summary_path,     # model/{arch}_{img_size_opt}/train_summary.json
             "--output_dir", output_dir,
             "--infer_batch_size", str(args.infer_batch_size),
             "--num_workers", str(args.num_workers),
