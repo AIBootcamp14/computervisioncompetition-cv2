@@ -421,6 +421,9 @@ train.csv
 data.tar.gz
 
 # output files
-output/*.csv
+*.csv
+
+# models
+*.pt
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,python,visualstudiocode,git,jupyternotebooks,pycharm
