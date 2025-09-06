@@ -18,10 +18,10 @@ def _finalize_to_square(size: int = IMG_SIZE):
 # train data : augmentation -> square화 -> normalize & tensorize
 def build_train_tf_base(size: int = IMG_SIZE):
     return A.Compose([
-        A.Rotate(limit=10, border_mode=0, value=255, p=0.5),
+        A.Rotate(limit=25, border_mode=0, value=255, p=0.5),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.3),
-        A.GaussNoise(var_limit=(5.0, 15.0), p=0.4),
+        A.GaussNoise(var_limit=(10.0, 30.0), p=0.4),
         A.ImageCompression(quality_lower=60, quality_upper=90, p=0.3),
         A.RandomBrightnessContrast(brightness_limit=0.12, contrast_limit=0.12, p=0.3),
 
@@ -79,19 +79,26 @@ def build_valid_tf(size: int = IMG_SIZE):
 # 문서류
 def make_tf_doc(size: int = IMG_SIZE) -> A.Compose:
     return A.Compose([
-        # 회전/기울이기
+        # 회전/기울이기/구겨짐
         A.Affine(rotate=(-8, 8), shear=(-3, 3), translate_percent=(0.0, 0.02),
                  fit_output=True, mode=0, cval=255, p=0.25),
-        # 채도 변화
-        A.HueSaturationValue(hue_shift_limit=4, sat_shift_limit=10, val_shift_limit=10, p=0.25),
-        # 대비 변화
-        A.CLAHE(clip_limit=(1, 3), p=0.25),
+        
+        # 문서가 구겨진 문제를 해결하기 위해 Perspective 증강 추가
+        A.Perspective(scale=(0.02, 0.06), pad_mode=0, pad_val=255, p=0.3),
+        
+        # 작은 글씨를 더 잘 보도록 RandomResizedCrop 추가
+        A.RandomResizedCrop(height=size, width=size, scale=(0.9, 1.0), interpolation=cv2.INTER_LINEAR, p=0.2),
+
         # 저해상/압축
         A.Downscale(scale_min=0.7, scale_max=0.9, interpolation=cv2.INTER_LINEAR, p=0.2),
-        A.ImageCompression(quality_lower=60, quality_upper=90, p=0.35),
+        A.ImageCompression(quality_lower=40, quality_upper=90, p=0.4),
+        
+        # 노이즈/밝기
         A.GaussNoise(var_limit=(5.0, 15.0), p=0.3),
         A.RandomBrightnessContrast(brightness_limit=0.12, contrast_limit=0.12, p=0.3),
         A.ToGray(p=0.3),
+        A.HueSaturationValue(hue_shift_limit=4, sat_shift_limit=10, val_shift_limit=10, p=0.25),
+        A.CLAHE(clip_limit=(1, 3), p=0.25),
 
         *_finalize_to_square(size),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
