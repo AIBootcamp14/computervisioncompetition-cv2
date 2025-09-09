@@ -20,6 +20,7 @@ test_img_file_list.sort()
 
 #%%
 # train image check (n1 counts from s1)
+
 s1 = 0
 n1 = 100
 
@@ -36,6 +37,7 @@ plt.show()
 
 #%%
 # test image check (n2 counts from s2)
+
 s2 = 500
 n2 = 100
 
@@ -149,6 +151,7 @@ plt.show()
 
 #%%
 # label noise check (for n*10 counts)
+
 meta_path = os.path.join(data_path, 'meta.csv')
 meta = pd.read_csv(meta_path)
 meta = meta.set_index("target")
@@ -182,7 +185,6 @@ for s3 in range(0, n):
 # Image check of a class:class_num (count of max_cnt)
 class_num = 14
 max_cnt = 5
-
 cnt = 0
 for i, r in train_df.iterrows():
     df_id, df_class_name = r
@@ -199,6 +201,7 @@ for i, r in train_df.iterrows():
     if cnt >= max_cnt:
        break
 
+        
 # %%
 # check large image (>=512px) pretrained model in timm & check img size and normalization value
 import timm

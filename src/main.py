@@ -8,6 +8,7 @@ import traceback
 from src.train.train import run_train, list_models
 from src.inference.inference import run_inference
 
+
 try:
     import wandb
 except Exception:
@@ -103,6 +104,7 @@ def main():
         else:
             names = list_models(filter_name=args.list_models, pretrained=True)
         print("\n".join(names))
+       
         return
 
     root_dir = os.path.abspath(args.root_dir)

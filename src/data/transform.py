@@ -48,7 +48,6 @@ def build_train_tf_base(size, mean, std, interpolation=cv2.INTER_LINEAR):
         ToTensorV2()
     ])
 
-
 def build_train_tf_heavy(size, mean, std, interpolation=cv2.INTER_LINEAR):
     return A.Compose([
         A.OneOf([A.RandomRotate90(p=1.0), A.Rotate(limit=25, border_mode=0, value=255)], p=0.8),
@@ -252,6 +251,7 @@ def make_tf_idcert(size, mean, std, interpolation=cv2.INTER_LINEAR):
         A.MotionBlur(blur_limit=3, p=0.20),
 
         *_finalize_to_square(size, interpolation),
+
         A.Normalize(mean=mean, std=std),
         ToTensorV2()
     ])
@@ -303,6 +303,7 @@ def build_valid_tf_robust(size, mean, std, interpolation=cv2.INTER_LINEAR):
         A.ToGray(p=0.4),
         A.InvertImg(p=0.2),
         *_finalize_to_square(size, interpolation),
+
         A.Normalize(mean=mean, std=std),
         ToTensorV2()
     ])
