@@ -13,11 +13,31 @@
 
 ### Environment
 
-- _Write Development environment_
+- OS: Ubuntu 20.04.6 LTS (tested)  
+- Python: 3.10  
+- PyTorch: 2.1.0  
+- CUDA: 11.8, cuDNN 8.7  
+- GPU: NVIDIA GeForce RTX 3090 (24GB VRAM)  
+- Dependencies: See [environment.yml](./environment.yml)
 
 ### Requirements
 
-- _Write Requirements_
+- python=3.10
+- pytorch=2.1.0
+- pytorch-cuda=11.8
+- torchvision=0.16.0
+- torchaudio=2.1.0
+- numpy=1.26
+- scipy=1.11
+- scikit-learn=1.3
+- pandas=2.1
+
+### Setup
+
+```bash
+conda env create -f environment.yml
+conda activate base
+```
 
 ## 1. Competiton Info
 
@@ -102,7 +122,7 @@ $$
 
 ### Modeling Process
 
-- _Write model train and test process with capture_
+See `run_scripts/`
 
 ## 5. Result
 

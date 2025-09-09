@@ -1,27 +1,12 @@
 #%%
 import os
-import time
-
 import cv2
 import timm
-import torch
-import albumentations as A
 import pandas as pd
-import numpy as np
-import torch.nn as nn
 import matplotlib.pyplot as plt
-
-from albumentations.pytorch import ToTensorV2
-from torch.optim import Adam
-from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader
-from torchvision.datasets import ImageFolder
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from PIL import Image
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, f1_score
 
-# EDA
 data_path = '../../data'
 
 train_img_path = os.path.join(data_path, 'train')
@@ -34,7 +19,8 @@ test_img_file_list = [f for f in os.listdir(test_img_path) if f.endswith('.jpg')
 test_img_file_list.sort()
 
 #%%
-# train 이미지 살펴보기 (s1 부터 n1개)
+# train image check (n1 counts from s1)
+
 s1 = 0
 n1 = 100
 
@@ -50,7 +36,8 @@ for i, f in enumerate(train_img_file_list[s1:s1 + n1]):
 plt.show()
 
 #%%
-# test 이미지 살펴보기 (s2 부터 n2개)
+# test image check (n2 counts from s2)
+
 s2 = 500
 n2 = 100
 
@@ -66,13 +53,13 @@ for i, f in enumerate(test_img_file_list[s2: s2+n2]):
 plt.show()
 
 # noise
-# 좌우반전
-# 상하반전
-# 회전
-# 위에 것 여러 개 결합
+# flip
+# upside-down
+# rotation
+# ...
 
 #%%
-# Class 불균형 확인
+# Class imbalance check
 train_df = pd.read_csv(os.path.join(data_path, "train.csv"))
 print(train_df.info())
 
@@ -86,13 +73,12 @@ plt.xlabel("Class")
 plt.ylabel("Count")
 plt.show()
 
-# 클래스별 개수 확인
 print(class_counts)
 
-# class 1, 13, 14 에 불균형 존재 확인
+# minority class: 1, 13, 14
 
 #%%
-# 문서 이미지 해상도 확인
+# Image resolution (Img Size) check
 train_df = pd.read_csv(os.path.join(data_path, "train.csv"))
 train_longest_sizes = []
 
@@ -101,14 +87,14 @@ for fp in tqdm(train_df['ID']):
     h, w = img.shape[:2]
     train_longest_sizes.append(max(h, w))
 
-print("최대 이미지 해상도:", max(train_longest_sizes))
-print("최소 이미지 해상도:", min(train_longest_sizes))
-print("평균 이미지 해상도:", sum(train_longest_sizes)/len(train_longest_sizes))
+print("[Train] Max res:", max(train_longest_sizes))
+print("[Train] Min res:", min(train_longest_sizes))
+print("[Train] Avg res:", sum(train_longest_sizes)/len(train_longest_sizes))
 
 # train:
-# 최대 이미지 해상도: 753
-# 최소 이미지 해상도: 512
-# 평균 이미지 해상도: 596.31
+# Max: 753
+# Min: 512
+# Avg: 596.31
 
 test = pd.read_csv(os.path.join(data_path, "sample_submission.csv"))
 test_longest_sizes = []
@@ -118,14 +104,14 @@ for fp in tqdm(test['ID']):
     h, w = img.shape[:2]
     test_longest_sizes.append(max(h, w))
 
-print("최대 이미지 해상도:", max(test_longest_sizes))
-print("최소 이미지 해상도:", min(test_longest_sizes))
-print("평균 이미지 해상도:", sum(test_longest_sizes)/len(test_longest_sizes))
+print("[Test] Max res:", max(test_longest_sizes))
+print("[Test] Min res:", min(test_longest_sizes))
+print("[Test] Avg res:", sum(test_longest_sizes)/len(test_longest_sizes))
 
 # test:
-# 최대 이미지 해상도: 763
-# 최소 이미지 해상도: 512
-# 평균 이미지 해상도: 595.70
+# Max: 763
+# Min: 512
+# Avg: 595.70
 
 
 #%%
@@ -164,7 +150,8 @@ plt.grid(True)
 plt.show()
 
 #%%
-# label noise 확인
+# label noise check (for n*10 counts)
+
 meta_path = os.path.join(data_path, 'meta.csv')
 meta = pd.read_csv(meta_path)
 meta = meta.set_index("target")
@@ -192,14 +179,12 @@ for s3 in range(0, n):
         plt.tight_layout()
     plt.show()
 
-# label noise는 심하지 않음 (구분하기 애매한 사진은 없음)
+# Labels are relatively clean
 
 #%%
-# 특정 class의 사진들만 max_cnt장 보기
+# Image check of a class:class_num (count of max_cnt)
 class_num = 14
 max_cnt = 5
-
-
 cnt = 0
 for i, r in train_df.iterrows():
     df_id, df_class_name = r
@@ -216,19 +201,9 @@ for i, r in train_df.iterrows():
     if cnt >= max_cnt:
        break
 
-# 문제점: 특히 7번 class를 잘 구별하지 못함 -> 왜?
-# 같은 의료문서인 3, 4, 6, 7, 11, 12인 애들은 구별 잘 함
-# 확인 결과 다른 의료문서들은 헤더가 일정하거나 포맷이 일정
-# 하지만 7번 확인서의 경우는 헤더부터 다양함
-# 7번보다는 훨씬 덜하지만 항상 예측 잘못한 것에 끼는 14번도 살펴보면 7번과 굉장히 비슷한 형태
-## 시도해 볼 해결책 1) 이미 돌린 모델들 중 이걸 잘 잡아내서 7번도 잘 예측한 모델을 앙상블 (근본적인 해결책은 x)
-## 시도해 볼 해결책 2) 해상도 높이기
-## 시도해 볼 해결책 3) 미세한 글씨체를 잡아내는데 좋은 모델을 써보기
-## 시도해 볼 해결책 4) 문서형태가 7,14번일 때는 의도적인 훼손을 줄이기(특히 헤더를 의도적으로 많이 살려보기)
-
+        
 # %%
-# timm 라이브러리에 학습된 이미지셋의 사이즈 확인 및 512 이상 pretrain 모델 확인
-# timm 라이브러리에 학습된 이미지셋의 사이즈/정규화 확인 (>=512만)
+# check large image (>=512px) pretrained model in timm & check img size and normalization value
 import timm
 import pandas as pd
 from timm.data import resolve_model_data_config
