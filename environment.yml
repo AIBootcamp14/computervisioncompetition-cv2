@@ -1,0 +1,25 @@
+name: aistage_env
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch=2.1.0
+  - pytorch-cuda=11.8
+  - torchvision=0.16.0
+  - torchaudio=2.1.0
+  - numpy=1.26
+  - scipy=1.11
+  - scikit-learn=1.3
+  - pandas=2.1
+  - pillow=9.4
+  - jupyter
+  - ipykernel
+  - pip
+  - typing_extensions
+  - pip:
+      - timm==0.9.12
+      - albumentations==1.3.1
+      - opencv-python-headless==4.8.1.78
+      # 필요 pip 패키지만 여기에 추려 넣으세요 (중복은 제거)
