@@ -94,9 +94,6 @@ def to_device(batch, device):
     return xb, yb.to(device, non_blocking=True)
 
 
-scaler = GradScaler(enabled=torch.cuda.is_available())
-
-
 class FocalLoss(nn.Module):
     def __init__(self, gamma=1.5, weight=None, reduction="mean"):
         super().__init__()
@@ -125,7 +122,7 @@ def _serialize_focal_weight(fw):
     return str(fw)
 
 
-def train_one_epoch(model, loader, criterion, optimizer, device, logit_adj, ema: ModelEmaV2 | None = None,
+def train_one_epoch(model, loader, criterion, optimizer, device, logit_adj, scaler, ema: ModelEmaV2 | None = None,
                     accum_steps=1, scheduler=None, clip_value=2.0):
     model.train()
     epoch_loss, all_true, all_pred = 0.0, [], []
@@ -295,6 +292,7 @@ def run_train(
     n_folds: int = 5,
     minor_classes=(1, 13, 14),
     p_heavy_minor: float = 0.7,
+    doc_heavy_probs: dict = None,
     num_workers: int = 4,
     save_fold_logs: bool = False,
     use_early_stopping: bool = True,
@@ -334,6 +332,7 @@ def run_train(
     wandb_tags = (os.environ.get("WANDB_TAGS") or "").split(",") if os.environ.get("WANDB_TAGS") else None
 
     arch_dir = os.path.join(model_dir, f"{arch}_{img_size_opt}")
+    os.makedirs(arch_dir, exist_ok=True)    
     os.makedirs(output_dir, exist_ok=True)
     oof_dir = os.path.join(output_dir, "oof")
     os.makedirs(oof_dir, exist_ok=True)
@@ -349,7 +348,6 @@ def run_train(
         g = torch.Generator()
         g.manual_seed(42)
 
-        global scaler
         scaler = GradScaler(enabled=torch.cuda.is_available())
 
         best_loss_path = os.path.join(arch_dir, f"fold{fold}_best_loss.pt")
@@ -384,10 +382,6 @@ def run_train(
         DOC_CLASSES = {0, 1, 3, 4, 6, 7, 10, 11, 12, 13, 14}
         ID_CERT_CLASSES = {5, 8, 9, 15}
         CAR_CLASSES = {2, 16}
-        assert DOC_CLASSES.isdisjoint(ID_CERT_CLASSES)
-        assert DOC_CLASSES.isdisjoint(CAR_CLASSES)
-        assert ID_CERT_CLASSES.isdisjoint(CAR_CLASSES)   
-        assert DOC_CLASSES | ID_CERT_CLASSES | CAR_CLASSES == set(range(num_classes))
 
         doc_train_paths = [os.path.join("data/train", str(row.ID)) for _, row in tr_df.iterrows() if row.target in DOC_CLASSES]
 
@@ -396,7 +390,7 @@ def run_train(
             alpha=(0.06, 0.14),
             angle_set=(0, 90, 180, 270),
             scale=(0.9, 1.1),
-            self_or_pool_prob=0.4,
+            self_or_pool_prob=0.6,
             p=0.1
         )
         doc_overlay_heavy = OverlayFromPool(
@@ -404,17 +398,22 @@ def run_train(
             alpha=(0.06, 0.14),
             angle_set=(0, 90, 180, 270),
             scale=(0.9, 1.1),
-            self_or_pool_prob=0.4,
+            self_or_pool_prob=0.6,
             p=0.04 
         )
-
+        
         tf_doc = make_tf_doc(img_size, mean, std, interpolation=interp, overlay=doc_overlay_base)
         tf_doc_heavy = make_tf_doc_heavy(img_size, mean, std, interpolation=interp, overlay=doc_overlay_heavy)
         tf_id = make_tf_idcert(img_size, mean, std, interpolation=interp)
         tf_car = make_tf_car(img_size, mean, std, interpolation=interp)
 
-        p_doc_heavy = {1: 0.7, 13: 0.7, 3: 0.7, 7: 0.7, 14: 0.7, 4: 0.5, 10: 0.5, 11: 0.5, 12: 0.5}
-        default_p_doc_heavy = 0.3
+        p_doc_heavy_base = {}
+        default_p_doc_heavy = 0.4
+
+        if doc_heavy_probs:
+            p_doc_heavy_base.update(doc_heavy_probs)
+
+        p_doc_heavy = p_doc_heavy_base
 
         class_tf_map = {}
         for c in DOC_CLASSES:
@@ -589,7 +588,7 @@ def run_train(
 
         for epoch in range(1, epochs + 1):
             tr_loss, tr_f1 = train_one_epoch(
-                model, train_loader, criterion, optimizer, device, logit_adj=logit_adj,
+                model, train_loader, criterion, optimizer, device, logit_adj=logit_adj, scaler=scaler,
                 ema=ema, accum_steps=accum_steps, scheduler=scheduler, clip_value=clip_value,
             )
             va_loss, va_f1 = validate(ema.module, valid_loader, criterion, device, logit_adj=logit_adj)
