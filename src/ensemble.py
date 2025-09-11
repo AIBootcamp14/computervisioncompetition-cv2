@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 
 EPS = 1e-9
 
-def _row_normalize(p: np.ndarray) -> np.ndarray:
+def _row_normalize(p):
     p = np.clip(p, EPS, 1.0)
     s = p.sum(axis=1, keepdims=True)
     s = np.where(s <= 0, 1.0, s)

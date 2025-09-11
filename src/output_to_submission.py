@@ -1,5 +1,4 @@
 from pathlib import Path
-from datetime import datetime
 import pandas as pd
 
 def make_submissions():
@@ -16,22 +15,19 @@ def make_submissions():
 
     for csv_file in csv_files:
         try:
-            mtime = csv_file.stat().st_mtime
-            file_time = datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M")
-
-            file_name = csv_file.stem.split(".")[0]
+            file_name = csv_file.stem
 
             df = pd.read_csv(csv_file)
 
             if {"ID", "target"}.issubset(df.columns):
                 sub_df = df[["ID", "target"]]
 
-                base_save_name = f"{file_time}_{file_name}.csv"
+                base_save_name = f"sub_{file_name}.csv"
                 save_path = submission_dir / base_save_name
 
                 counter = 1
                 while save_path.exists():
-                    save_path = submission_dir / f"{file_time}_{file_name}_{counter}.csv"
+                    save_path = submission_dir / f"sub_{file_name}_{counter}.csv"
                     counter += 1
 
                 sub_df.to_csv(save_path, index=False)

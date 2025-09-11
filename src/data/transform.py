@@ -1,10 +1,15 @@
 import cv2
 import random
-import torch
 import albumentations as A
 import numpy as np
 from albumentations.pytorch import ToTensorV2
 from collections import OrderedDict
+try:
+    from skimage.restoration import richardson_lucy, unsupervised_wiener
+    _HAS_SKIMAGE = True
+except Exception:
+    _HAS_SKIMAGE = False
+
 
 INTER_AUTO = "auto"
 
@@ -35,7 +40,7 @@ def _finalize_to_square(size, interpolation=cv2.INTER_LINEAR):
 
 def build_train_tf_base(size, mean, std, interpolation=cv2.INTER_LINEAR):
     return A.Compose([
-        A.OneOf([A.RandomRotate90(), A.Rotate(limit=10, border_mode=0, value=255, p=0.5)]),
+        A.OneOf([A.RandomRotate90(), A.Rotate(limit=10, border_mode=0, value=255)],  p=0.5),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.3),
         A.GaussNoise(var_limit=(5.0, 15.0), p=0.4),
@@ -202,20 +207,20 @@ def make_tf_doc_heavy(size, mean, std, interpolation=cv2.INTER_LINEAR, overlay: 
         A.OneOf([
             A.Downscale(scale_min=0.6, scale_max=0.85, interpolation=cv2.INTER_LINEAR),
             A.ImageCompression(quality_lower=18, quality_upper=60),
-        ], p=0.65),
+        ], p=0.60),
 
         A.OneOf([
             A.GaussNoise(var_limit=(12.0, 28.0)),
             A.ISONoise(intensity=(0.2, 0.6)),
             A.MultiplicativeNoise(multiplier=(0.9, 1.1)),
-        ], p=0.60),
+        ], p=0.65),
         A.MotionBlur(blur_limit=5, p=0.30),
 
         A.RandomBrightnessContrast(brightness_limit=0.18, contrast_limit=0.25, p=0.45),
         A.CLAHE(clip_limit=(1, 3), p=0.35),
         A.Sharpen(alpha=(0.05, 0.15), lightness=(0.9, 1.1), p=0.20),
 
-        A.ToGray(p=0.55),
+        A.ToGray(p=0.50),
         A.InvertImg(p=0.18),
     ]
     if overlay is not None:
@@ -283,9 +288,164 @@ def make_tf_car(size, mean, std, interpolation=cv2.INTER_LINEAR):
         ToTensorV2()
     ])
 
+class FastNlMeans(A.ImageOnlyTransform):
+    def __init__(self, h=7, hColor=7, templateWindowSize=7, searchWindowSize=21, p=0.35):
+        super().__init__(p=p)
+        self.h, self.hColor = float(h), float(hColor)
+        self.tws, self.sws = int(templateWindowSize), int(searchWindowSize)
+
+    def apply(self, img, **params):
+        bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        den = cv2.fastNlMeansDenoisingColored(bgr, None,
+                                              h=self.h, hColor=self.hColor,
+                                              templateWindowSize=self.tws,
+                                              searchWindowSize=self.sws)
+        return cv2.cvtColor(den, cv2.COLOR_BGR2RGB)
+
+
+class BilateralDenoise(A.ImageOnlyTransform):
+    def __init__(self, d=5, sigmaColor=35, sigmaSpace=35, p=0.30):
+        super().__init__(p=p)
+        self.d = int(d); self.sc = float(sigmaColor); self.ss = float(sigmaSpace)
+
+    def apply(self, img, **params):
+        bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        out = cv2.bilateralFilter(bgr, self.d, self.sc, self.ss)
+        return cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
+
+
+class UnsharpMask(A.ImageOnlyTransform):
+    def __init__(self, radius=1.5, amount=0.8, threshold=0, p=0.45):
+        super().__init__(p=p)
+        self.radius = float(radius); self.amount = float(amount); self.threshold = int(threshold)
+
+    def apply(self, img, **params):
+        blur = cv2.GaussianBlur(img, (0, 0), self.radius)
+        if self.threshold > 0:
+            low_contrast_mask = np.abs(img.astype(np.int16) - blur.astype(np.int16)) < self.threshold
+            sharp = cv2.addWeighted(img, 1 + self.amount, blur, -self.amount, 0)
+            sharp = np.where(low_contrast_mask, img, sharp)
+        else:
+            sharp = cv2.addWeighted(img, 1 + self.amount, blur, -self.amount, 0)
+        return np.clip(sharp, 0, 255).astype(np.uint8)
+
+
+def _variance_of_laplacian(gray_u8):
+    return cv2.Laplacian(gray_u8, cv2.CV_64F).var()
+
+
+class ConditionalDeblur(A.ImageOnlyTransform):
+    def __init__(self,
+                 blur_thresh=110.0, 
+                 use_rl=True, max_iter=15,
+                 wiener=True, p=0.40):
+        super().__init__(p=p)
+        self.blur_thresh = float(blur_thresh)
+        self.use_rl = bool(use_rl)
+        self.max_iter = int(max_iter)
+        self.use_wiener = bool(wiener)
+
+
+    def _simple_motion_psf(self, length=7, angle=0.0):
+
+        psf = np.zeros((length, length), dtype=np.float32)
+        psf[length//2, :] = 1.0
+        psf /= psf.sum()
+        M = cv2.getRotationMatrix2D((length/2, length/2), angle, 1.0)
+        psf = cv2.warpAffine(psf, M, (length, length))
+        psf = psf / (psf.sum() + 1e-8)
+        return psf
+
+
+    def apply(self, img, **params):
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        score = _variance_of_laplacian(gray)
+        if score >= self.blur_thresh:
+
+            us = UnsharpMask(radius=1.2, amount=0.6, threshold=0, p=1.0)
+            return us.apply(img)
+
+
+        if _HAS_SKIMAGE and (self.use_rl or self.use_wiener):
+            psf = self._simple_motion_psf(length=9, angle=0.0)
+            img_f = img.astype(np.float32) / 255.0
+            if self.use_wiener:
+                try:
+                    chans = []
+                    for c in cv2.split(img_f):
+                        rec, _ = unsupervised_wiener(c, psf)
+                        chans.append(np.clip(rec, 0, 1))
+                    rec = cv2.merge(chans)
+                    out = (rec * 255.0).astype(np.uint8)
+                    return out
+                except Exception:
+                    pass
+            if self.use_rl:
+                chans = []
+                for c in cv2.split(img_f):
+                    rec = richardson_lucy(c, psf, num_iter=self.max_iter, clip=True)
+                    chans.append(np.clip(rec, 0, 1))
+                rec = cv2.merge(chans)
+                out = (rec * 255.0).astype(np.uint8)
+                return out
+
+        us = UnsharpMask(radius=1.8, amount=0.9, threshold=0, p=1.0)
+        return us.apply(img)
+
 
 def build_test_tf(size, mean, std, interpolation=cv2.INTER_LINEAR):
     return A.Compose([
+        *_finalize_to_square(size, interpolation),
+        A.Normalize(mean=mean, std=std),
+        ToTensorV2()
+    ])
+
+
+def build_test_tf_doc_deskew(size, mean, std, interpolation=cv2.INTER_LINEAR):
+    return A.Compose([
+        A.Affine(rotate=(-10, 10), shear=(-4, 4), translate_percent=(0.0, 0.01),
+                 fit_output=True, mode=0, cval=255, p=0.9),
+        *_finalize_to_square(size, interpolation),
+        A.Normalize(mean=mean, std=std),
+        ToTensorV2()
+    ])
+
+
+def build_test_tf_doc_restore_bal(size, mean, std, interpolation=cv2.INTER_LINEAR):
+    return A.Compose([
+        A.Affine(rotate=(-10, 10), shear=(-4, 4), translate_percent=(0.0, 0.015),
+                 fit_output=True, mode=0, cval=255, p=0.65),
+        A.OneOf([
+            FastNlMeans(h=6, hColor=6, templateWindowSize=7, searchWindowSize=21, p=1.0),
+            BilateralDenoise(d=5, sigmaColor=30, sigmaSpace=30, p=1.0),
+        ], p=0.60),
+        A.OneOf([
+            A.CLAHE(clip_limit=(1, 3)),
+            A.Equalize(mode="cv", by_channels=True),
+        ], p=0.55),
+        A.RandomBrightnessContrast(brightness_limit=0.07, contrast_limit=0.12, p=0.55),
+        ConditionalDeblur(blur_thresh=120.0, use_rl=True, max_iter=12, wiener=True, p=0.45),
+        UnsharpMask(radius=1.5, amount=0.75, threshold=0, p=0.45),
+        A.ToGray(p=0.45),
+        *_finalize_to_square(size, interpolation),
+        A.Normalize(mean=mean, std=std),
+        ToTensorV2()
+    ])
+
+
+def build_test_tf_doc_restore_max(size, mean, std, interpolation=cv2.INTER_LINEAR):
+    return A.Compose([
+        A.Affine(rotate=(-12, 12), shear=(-5, 5), translate_percent=(0.0, 0.02),
+                 fit_output=True, mode=0, cval=255, p=0.75),
+        A.OneOf([
+            FastNlMeans(h=7.5, hColor=7.5, templateWindowSize=7, searchWindowSize=21, p=1.0),
+            BilateralDenoise(d=7, sigmaColor=38, sigmaSpace=38, p=1.0),
+        ], p=0.75),
+        A.CLAHE(clip_limit=(2, 3), p=0.65),
+        A.RandomBrightnessContrast(brightness_limit=0.08, contrast_limit=0.14, p=0.60),
+        ConditionalDeblur(blur_thresh=140.0, use_rl=True, max_iter=16, wiener=True, p=0.55),
+        UnsharpMask(radius=1.8, amount=0.9, threshold=0, p=0.60),
+        A.ToGray(p=0.50),
         *_finalize_to_square(size, interpolation),
         A.Normalize(mean=mean, std=std),
         ToTensorV2()
