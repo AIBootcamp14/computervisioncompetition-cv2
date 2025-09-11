@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import argparse
 import warnings
@@ -13,13 +14,12 @@ import timm
 import torch
 from torch.utils.data import Dataset, DataLoader
 from timm.data import resolve_model_data_config
-from src.data.transform import INTER_AUTO, build_test_tf
+from src.data.transform import (INTER_AUTO, build_test_tf,
+                                build_test_tf_doc_deskew,
+                                build_test_tf_doc_restore_bal,
+                                build_test_tf_doc_restore_max
+)
 from src.train.train import set_seed
-
-try:
-    import wandb
-except Exception:
-    wandb = None
 
 
 def _resolve_img_size_from_model(model, user_opt):
@@ -49,14 +49,18 @@ def _tta_stream(x, enable):
         yield torch.rot90(x, k=3, dims=[2, 3])
 
 
+def _parse_int_list(s: str):
+    s = (s or "").strip()
+    if not s:
+        return []
+    return [int(x) for x in s.split(",") if x.strip() != ""]
+
+
 class TestImageDataset(Dataset):
     def __init__(self, test_dir, transform=None, exts=(".jpg", ".png", ".jpeg")):
         self.test_dir = test_dir
         self.transform = transform
-        self.files = sorted([
-            f for f in os.listdir(test_dir)
-            if f.lower().endswith(exts)
-        ])
+        self.files = sorted([f for f in os.listdir(test_dir) if f.lower().endswith(exts)])
         if len(self.files) == 0:
             raise FileNotFoundError(f"No image files found in: {test_dir}")
 
@@ -71,6 +75,15 @@ class TestImageDataset(Dataset):
         if self.transform is not None:
             img = self.transform(image=img)["image"]
         return img, fname
+
+
+class TestImageDatasetSubset(TestImageDataset):
+    def __init__(self, test_dir, include_files, transform=None, exts=(".jpg", ".png", ".jpeg")):
+        super().__init__(test_dir, transform=transform, exts=exts)
+        include = set(str(x) for x in include_files)
+        self.files = [f for f in self.files if f in include]
+        if len(self.files) == 0:
+            print("No files selected for Stage-2 subset.")
 
 
 def load_fold_models(summary_path, select_ckpt="f1"):
@@ -113,7 +126,6 @@ def load_fold_models(summary_path, select_ckpt="f1"):
 
 @torch.no_grad()
 def infer_ensemble(models, loader, device, use_tta=False, return_proba=False, avg="logit"):
-    
     assert avg in {"logit", "prob"}, "avg must be 'logit' or 'prob'"
 
     ids, preds, all_proba = [], [], []
@@ -169,6 +181,19 @@ def infer_ensemble(models, loader, device, use_tta=False, return_proba=False, av
     return df
 
 
+def _resolve_test_tf_by_name(name: str, size, mean, std, interp):
+    n = (name or "none").strip().lower()
+    if n in {"", "none"}:
+        return build_test_tf(size, mean, std, interpolation=interp)
+    if n == "doc_deskew" and build_test_tf_doc_deskew:
+        return build_test_tf_doc_deskew(size, mean, std, interpolation=interp)
+    if n == "doc_restore_bal" and build_test_tf_doc_restore_bal:
+        return build_test_tf_doc_restore_bal(size, mean, std, interpolation=interp)
+    if n == "doc_restore_max" and build_test_tf_doc_restore_max:
+        return build_test_tf_doc_restore_max(size, mean, std, interpolation=interp)
+    warnings.warn(f"[test preset] Unknown/unavailable '{name}', fallback to build_test_tf()", UserWarning)
+    return build_test_tf(size, mean, std, interpolation=interp)
+
 
 def _coerce_to_namespace(args):
     if args is None:
@@ -184,11 +209,81 @@ def _coerce_to_namespace(args):
         ap.add_argument("--save_proba", action="store_true")
         ap.add_argument("--avg", type=str, default="logit", choices=["logit", "prob"])
         ap.add_argument("--select_ckpt", type=str, default="f1", choices=["f1", "loss"])
+        ap.add_argument("--out_tag", type=str, default="")
+        ap.add_argument("--stage1_presets", type=str, default="none")
+        ap.add_argument("--stage2_preset", type=str, default="doc_restore_bal")
+        ap.add_argument("--stage2_mode", type=str, default="entropy", choices=["entropy", "margin", "sum", "pred"])
+        ap.add_argument("--route_classes", type=str, default="")
+        ap.add_argument("--route_gate", type=float, default=0.60)
+        ap.add_argument("--stage2_limit", type=int, default=0)
+        ap.add_argument("--stage2_blend", type=float, default=1.0)
+        ap.add_argument("--no_stage2", action="store_true")
+
         return ap.parse_args()
     elif isinstance(args, dict):
         return SimpleNamespace(**args)
     else:
         return args
+
+
+def _select_stage2_indices(proba_stage1, args):
+    n_classes = proba_stage1.shape[1]
+    mode = str(getattr(args, "stage2_mode", "entropy")).lower()
+    gate = float(getattr(args, "route_gate", 0.60))
+
+    idx_selected = np.array([], dtype=np.int64)
+    route_score = None
+
+    if mode == "entropy":
+        eps = 1e-9
+        ent = -(proba_stage1 * np.log(proba_stage1 + eps)).sum(axis=1)
+        ent_norm = ent / np.log(n_classes)
+        route_score = ent_norm
+        idx_selected = np.where(ent_norm >= gate)[0]
+
+    elif mode == "margin":
+        p_sorted = np.sort(proba_stage1, axis=1)
+        margin = p_sorted[:, -1] - p_sorted[:, -2]
+        score = 1.0 - margin
+        route_score = score
+        idx_selected = np.where(score >= gate)[0]
+
+    elif mode == "sum":
+        cls = _parse_int_list(getattr(args, "route_classes", ""))
+        if cls:
+            mask = np.zeros((n_classes,), dtype=np.float32)
+            mask[cls] = 1.0
+            s = (proba_stage1 * mask[None, :]).sum(axis=1)
+            route_score = s
+            idx_selected = np.where(s >= gate)[0]
+        else:
+            route_score = np.zeros((proba_stage1.shape[0],), dtype=np.float32)
+            idx_selected = np.array([], dtype=np.int64)
+
+    elif mode == "pred":
+        cls = set(_parse_int_list(getattr(args, "route_classes", "")))
+        if cls:
+            top1 = proba_stage1.argmax(axis=1)
+            idx_selected = np.array([i for i, c in enumerate(top1) if c in cls], dtype=np.int64)
+            route_score = None
+        else:
+            idx_selected = np.array([], dtype=np.int64)
+            route_score = None
+
+    else:
+        raise ValueError(f"Unknown stage2_mode: {mode}")
+
+    limit = int(getattr(args, "stage2_limit", 0) or 0)
+    if limit > 0 and len(idx_selected) > limit:
+        if route_score is not None:
+            order = np.argsort(-route_score[idx_selected])[:limit]
+        else:
+            eps = 1e-9
+            ent = -(proba_stage1 * np.log(proba_stage1 + eps)).sum(axis=1) / np.log(n_classes)
+            order = np.argsort(-ent[idx_selected])[:limit]
+        idx_selected = idx_selected[order]
+
+    return idx_selected, route_score
 
 
 def run_inference(args=None):
@@ -209,11 +304,13 @@ def run_inference(args=None):
     img_size = _resolve_img_size_from_model(model0, args.img_size)
 
     interp = INTER_AUTO
-    ds = TestImageDataset(args.test_dir, transform=build_test_tf(img_size, mean, std, interpolation=interp))
+
+    stage1_names = [s.strip() for s in (getattr(args, "stage1_presets", "none") or "none").split(",") if s.strip() != ""]
+    if not stage1_names:
+        stage1_names = ["none"]
 
     use_pin = torch.cuda.is_available()
-    dl_kwargs = dict(
-        dataset=ds,
+    common_dl_kwargs = dict(
         batch_size=args.infer_batch_size,
         shuffle=False,
         num_workers=args.num_workers,
@@ -221,33 +318,84 @@ def run_inference(args=None):
         persistent_workers=(args.num_workers > 0),
     )
     if args.num_workers > 0:
-        dl_kwargs["prefetch_factor"] = 4
-    dl = DataLoader(**dl_kwargs)
+        common_dl_kwargs["prefetch_factor"] = 4
 
-    df = infer_ensemble(models, dl, device, use_tta=args.tta, return_proba=args.save_proba, avg=getattr(args, "avg", "logit"))
+    ids_all, proba_accum = None, None
+    for pname in stage1_names:
+        tf1 = _resolve_test_tf_by_name(pname, img_size, mean, std, interp)
+        ds1 = TestImageDataset(args.test_dir, transform=tf1)
+        dl1 = DataLoader(ds1, **common_dl_kwargs)
+
+        df1 = infer_ensemble(models, dl1, device, use_tta=args.tta, return_proba=True, avg=getattr(args, "avg", "logit"))
+        probs1 = df1[[c for c in df1.columns if c.startswith("prob_")]].values.astype("float32")
+        if ids_all is None:
+            ids_all = df1["ID"].values
+            proba_accum = probs1
+        else:
+            proba_accum += probs1
+
+    proba_stage1 = proba_accum / float(len(stage1_names))
+
+    if getattr(args, "no_stage2", False):
+        idx_selected = np.array([], dtype=np.int64)
+        route_score = None
+        print("[Inference Stage 2] disabled by --no_stage2")
+    else:
+        idx_selected, route_score = _select_stage2_indices(proba_stage1, args)
+        print(
+            f"[Inference Stage 2] routed: {len(idx_selected)} / {len(ids_all)}  "
+            f"(mode={getattr(args,'stage2_mode','entropy')}, gate={float(getattr(args,'route_gate',0.60)):.2f})"
+        )
+
+    selected_files = [ids_all[i] for i in idx_selected]
+
+    proba_final = proba_stage1.copy()
+    blend = float(getattr(args, "stage2_blend", 1.0))
+
+    if len(selected_files) > 0 and blend > 0.0:
+        pname2 = getattr(args, "stage2_preset", "doc_restore_bal")
+        tf2 = _resolve_test_tf_by_name(pname2, img_size, mean, std, interp)
+        ds2 = TestImageDatasetSubset(args.test_dir, include_files=selected_files, transform=tf2)
+        dl2 = DataLoader(ds2, **common_dl_kwargs)
+
+        df2 = infer_ensemble(models, dl2, device, use_tta=args.tta, return_proba=True, avg=getattr(args, "avg", "logit"))
+        probs2 = df2[[c for c in df2.columns if c.startswith("prob_")]].values.astype("float32")
+        ids2 = df2["ID"].values
+
+        pos = {fn: i for i, fn in enumerate(ids_all)}
+
+        for j, fn in enumerate(ids2):
+            i = pos[fn]
+            if blend >= 1.0:
+                proba_final[i, :] = probs2[j, :]
+            elif blend <= 0.0:
+                pass
+            else:
+                proba_final[i, :] = (1.0 - blend) * proba_stage1[i, :] + blend * probs2[j, :]
+
+    pred = proba_final.argmax(axis=1)
+    final_df = pd.DataFrame({"ID": ids_all, "target": pred})
+    if getattr(args, "save_proba", False):
+        prob_cols = [f"prob_{i}" for i in range(proba_final.shape[1])]
+        final_df = pd.concat([final_df, pd.DataFrame(proba_final, columns=prob_cols)], axis=1)
+        final_df["routed_stage2"] = False
+        final_df.loc[idx_selected, "routed_stage2"] = True
+        if route_score is not None:
+            final_df["route_score"] = route_score
 
     os.makedirs(args.output_dir, exist_ok=True)
-    out_csv = os.path.join(args.output_dir, f"{arch_dir}.csv")
-    df.to_csv(out_csv, index=False)
+    
+    arch_img = f"{args.arch}_{args.img_size}"
+    tag = (getattr(args, "out_tag", "") or "").strip()
+    if tag:
+        safe_tag = re.sub(r"[^A-Za-z0-9._+-]+", "-", tag)
+        filename = f"{arch_img}_{safe_tag}.csv"
+    else:
+        filename = f"{arch_img}.csv"
+
+    out_csv = os.path.join(args.output_dir, filename)
+    final_df.to_csv(out_csv, index=False)
     print(f"Saved: {out_csv}")
-
-    wandb_enabled = (wandb is not None) and (getattr(wandb, "run", None) is not None)
-    if wandb_enabled:
-        try:
-            wandb.log({
-                "inference/num_images": len(df),
-                "inference/tta": bool(args.tta),
-                "inference/save_proba": bool(args.save_proba),
-                "inference/output_csv": out_csv,
-            })
-            cls_counts = df["target"].value_counts().to_dict()
-            wandb.log({f"inference/class_count/{int(k)}": int(v) for k, v in cls_counts.items()})
-
-            art = wandb.Artifact(f"{arch_dir}_pred", type="inference_csv")
-            art.add_file(out_csv)
-            wandb.log_artifact(art)
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":
