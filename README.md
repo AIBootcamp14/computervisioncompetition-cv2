@@ -1,6 +1,6 @@
 # Document Type Classification
 
-이 프로젝트는 문서 이미지 분류 대회 참가에 사용된 솔루션으로, 컴퓨터 비전 분야의 최신 딥러닝 기술들을 효과적으로 조합하여 최고 성능을 달성한 결과물입니다. 
+이 프로젝트는 문서 이미지 분류 대회 참가에 사용된 솔루션으로, 컴퓨터 비전 딥러닝 기술들을 효과적으로 조합하여 최고 성능을 달성했습니다. 
 
 특히, 모델의 일반화 성능을 극대화하고 최종 예측 정확도를 끌어올리기 위한 앙상블 및 스태킹 기법에 중점을 두어 개발되었습니다.
 
@@ -27,6 +27,8 @@
 ![Scikit-learn](https://img.shields.io/badge/Scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
 ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
 ![timm](https://img.shields.io/badge/Timm-007396?style=for-the-badge&logo=Timm&logoColor=white)
+
+최종 점수: Test Macro F1 Score 0.97 달성
 
 ### Environment
 
@@ -58,17 +60,17 @@
 
 ### Overview
 
-이번 대회는 문서 타입 분류를 위한 이미지 분류 대회입니다. 문서 데이터는 금융, 의료, 보험, 물류 등 산업 전반에 가장 많은 데이터이며, 많은 대기업에서 디지털 혁신을 위해 문서 유형을 분류하고자 합니다. 이러한 문서 타입 분류는 의료, 금융 등 여러 비즈니스 분야에서 대량의 문서 이미지를 식별하고 자동화 처리를 가능케 할 수 있습니다.
+이 대회는 문서 타입 분류를 위한 이미지 분류 대회로, 금융, 의료, 보험, 물류 등 다양한 산업 분야에서 활용되는 문서 이미지를 17개 클래스로 분류합니다. 현업 데이터를 기반으로 제작되어 실제 문제를 해결하는 경험을 제공합니다.
 
-이번 대회에 사용될 데이터는 총 17개 종의 문서로 분류되어 있습니다. 1570장의 학습 이미지를 통해 3140장의 평가 이미지를 예측하게 됩니다. 특히, 현업에서 사용하는 실 데이터를 기반으로 대회를 제작하여 대회와 현업의 갭을 최대한 줄였습니다. 또한 현업에서 생길 수 있는 여러 문서 상태에 대한 이미지를 구축하였습니다.
+![alt text](image.png)
 
-이번 대회를 통해서 문서 타입 데이터셋을 이용해 이미지 분류를 모델을 구축합니다. 주어진 문서 이미지를 입력 받아 17개의 클래스 중 정답을 예측하게 됩니다. computer vision에서 중요한 backbone 모델들을 실제 활용해보고, 좋은 성능을 가지는 모델을 개발할 수 있습니다. 그 밖에 학습했던 여러 테크닉들을 적용해 볼 수 있습니다.
+
 
 - **기간**: 2025년 9월 1일 ~ 2025년 9월 11일
 
 - **주제**: 문서 이미지 분류
 
-- **평가지표**: Macro F1
+- **평가지표**: Macro F1 Score
 
 $$
 \text{Macro-F1} = \frac{1}{N} \sum_{i=1}^{N} F1_i
@@ -85,8 +87,8 @@ $$
  > - TP: True Positive, FP: False Positive, FN: False Negative  
 
 - **주요 목표**:
-  - **다양한 CNN 기반 Backbone (ResNet, EfficientNet 등)** 및 최신 기법을 적용해 성능 비교  
-  - **데이터 불균형 문제를 고려한 학습 기법**(데이터 증강, 클래스 가중치 적용 등) 실험  
+  - **다양한 CNN 기반 Backbone (ResNet, EfficientNet 등)** 및 최신 기법을 적용 및 성능 비교  
+  - **데이터 불균형 문제를 고려한 학습 기법 실험**(데이터 증강, 클래스 가중치 적용 등) 실험  
   - **Macro-F1 기준 최적 성능 달성**을 목표로 하는 모델 구축
 
 ## 2. Components
@@ -143,13 +145,11 @@ $$
 
 이미지 해상도: 이미지 크기는 512px에서 763px까지 다양하게 분포되어 있음을 파악했습니다.
 
-레이블 정확도: 일부 노이즈가 존재했지만, 레이블은 전반적으로 깨끗한 상태임을 확인했습니다.
+레이블 정확도: 일부 오분류된 이미지들이 존재하여, 데이터 레이블에 휴먼 에러가 일부 발견되었습니다.
 
 ### Data Processing
 
-- 모델 학습을 위해 다음과 같은 데이터 전처리 및 증강 기법을 적용했습니다.
-
-리사이즈 및 정규화: 모든 이미지를 모델의 입력 크기에 맞게 리사이즈하고, RGB 채널별로 평균 및 표준 편차를 사용해 정규화했습니다.
+전처리: 모든 이미지를 모델의 입력 크기에 맞게 리사이즈하고, RGB 채널별로 평균 및 표준 편차를 사용해 정규화했습니다.
 
 데이터 증강: 학습 데이터의 일반화 성능을 높이기 위해 무작위 회전, 상하좌우 반전 등 다양한 증강 기법을 적용했습니다.
 
@@ -157,11 +157,14 @@ $$
 
 ### Model descrition
 
-- _Write model information and why your select this model_
+-모델 선정: 대회 데이터셋은 실제 문서 이미지로, 복잡한 패턴과 텍스트가 포함되어 있습니다. Vision Transformer (ViT)는 이미지의 전역적인 특징을 효과적으로 학습하는 데 강점이 있어 이 문제에 적합하다고 판단했습니다.
 
-### Modeling Process
+### Final Prediction: Ensemble & Stacking
+K-Fold 교차 검증: 모델의 일반화 성능을 확인하고 최종 예측의 신뢰도를 높이기 위해 5-Fold 교차 검증을 사용했습니다.
 
-See `run_scripts/`
+손실 함수: 클래스 불균형 문제를 해결하기 위해 Focal Loss와 Logit Adjustment를 적용했습니다.
+
+앙상블 및 스태킹: 개별 모델의 예측 결과를 합쳐 최종 성능을 극대화하는 스태킹 앙상블을 사용했습니다. 이는 ensemble.py 스크립트를 통해 구현되었습니다.
 
 ## 5. Result
 
@@ -206,19 +209,17 @@ or 혼동행렬그래프 넣어주면 좋을 거 같습니다.
 
 ### Setup
 
-1. 환경 설정
+#### 1. 환경 설정
 
 ```bash
 conda env create -f environment.yml
 conda activate base
 ```
 
-2. 학습 및 추론 실행
-전체 파이프라인은 main.py를 통해 제어됩니다. --do_infer 플래그를 추가하면 학습 후 자동으로 추론까지 실행됩니다.
+#### 2. 학습 및 추론 실행
+main.py를 통해 전체 파이프라인을 제어합니다. --do_infer 플래그를 추가하면 학습 후 자동으로 추론까지 실행됩니다.
 
-학습 및 추론 실행 예시
-
-```
+```bash
 python main.py \
     --arch vit_base_patch16_224 \
     --img_size 224 \
@@ -246,11 +247,11 @@ python main.py \
 
 --tta: 추론 시 TTA(Test Time Augmentation)를 적용합니다.
 
-3. 스태킹 앙상블 실행
+#### 3. 스태킹 앙상블 실행
 main.py를 통해 생성된 OOF 파일들을 사용하여 스태킹 앙상블을 수행합니다. 이 과정은 개별 모델의 성능을 넘어 최종 예측 정확도를 극대화하는 핵심 단계입니다.
 
-# `output/oof/`에 저장된 OOF 파일들을 인자로 전달
-```
+ `output/oof/`에 저장된 OOF 파일들을 인자로 전달
+```bash
 python ensemble.py \
     --oof output/oof/vit_base_patch16_224_oof.csv output/oof/swinv2_base_window12to24_192to384_oof.csv \
     --test output/test/vit_base_patch16_224_test.csv output/test/swinv2_base_window12to24_192to384_test.csv \
@@ -266,9 +267,9 @@ python ensemble.py \
 
 --standardize: 입력 특징을 표준화하여 안정적인 학습을 유도합니다.
 
-4. 최종 제출 파일 생성
+#### 4. 최종 제출 파일 생성
 스태킹 앙상블로 생성된 최종 예측 CSV를 대회 제출 형식에 맞게 변환합니다.
 
-```
+```bash
 python output_to_submission.py
 ```
