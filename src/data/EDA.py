@@ -11,6 +11,8 @@ data_path = '../../data'
 
 train_img_path = os.path.join(data_path, 'train')
 test_img_path = os.path.join(data_path, 'test')
+train_df = pd.read_csv(os.path.join(data_path, "train.csv"))
+test_df = pd.read_csv(os.path.join(data_path, "sample_submission.csv"))
 
 train_img_file_list = [f for f in os.listdir(train_img_path) if f.endswith('.jpg')]
 train_img_file_list.sort()
@@ -77,42 +79,6 @@ print(class_counts)
 
 # minority class: 1, 13, 14
 
-#%%
-# Image resolution (Img Size) check
-train_df = pd.read_csv(os.path.join(data_path, "train.csv"))
-train_longest_sizes = []
-
-for fp in tqdm(train_df['ID']):
-    img = cv2.imread(os.path.join(train_img_path,fp))
-    h, w = img.shape[:2]
-    train_longest_sizes.append(max(h, w))
-
-print("[Train] Max res:", max(train_longest_sizes))
-print("[Train] Min res:", min(train_longest_sizes))
-print("[Train] Avg res:", sum(train_longest_sizes)/len(train_longest_sizes))
-
-# train:
-# Max: 753
-# Min: 512
-# Avg: 596.31
-
-test = pd.read_csv(os.path.join(data_path, "sample_submission.csv"))
-test_longest_sizes = []
-
-for fp in tqdm(test['ID']):
-    img = cv2.imread(os.path.join(test_img_path,fp))
-    h, w = img.shape[:2]
-    test_longest_sizes.append(max(h, w))
-
-print("[Test] Max res:", max(test_longest_sizes))
-print("[Test] Min res:", min(test_longest_sizes))
-print("[Test] Avg res:", sum(test_longest_sizes)/len(test_longest_sizes))
-
-# test:
-# Max: 763
-# Min: 512
-# Avg: 595.70
-
 
 #%%
 import matplotlib.pyplot as plt
@@ -125,29 +91,65 @@ for fp in tqdm(train_df['ID']):
     train_heights.append(h)
     train_widths.append(w)
 
+# longest side 통계
+train_longest = [max(h, w) for h, w in zip(train_heights, train_widths)]
+train_max = max(train_longest)
+train_min = min(train_longest)
+train_avg = sum(train_longest) / len(train_longest)
+
 plt.figure(figsize=(6,6))
 plt.scatter(train_widths, train_heights, c="blue", alpha=0.4, s=10)
 plt.xlabel("Width (pixels)")
 plt.ylabel("Height (pixels)")
-plt.title("Train Image Resolution (Width vs Height)")
+plt.title("Train Image Size")
 plt.grid(True)
+plt.text(
+    x=max(train_widths) * 0.9, y=max(train_heights) * 0.98,
+    s=f"Max: {train_max}\nMin: {train_min}\nAvg: {train_avg:.2f}",
+    fontsize=10, color="black",
+    horizontalalignment="left", verticalalignment="top",
+    bbox=dict(facecolor="white", edgecolor="black", alpha=1.0)
+)
 plt.show()
+
+# train:
+# Max: 753
+# Min: 512
+# Avg: 596.31
 
 # test height, width
 test_heights, test_widths = [], []
-for fp in tqdm(test['ID']):
+for fp in tqdm(test_df['ID']):
     img = cv2.imread(os.path.join(test_img_path, fp))
     h, w = img.shape[:2]
     test_heights.append(h)
     test_widths.append(w)
 
+# longest side 통계
+test_longest = [max(h, w) for h, w in zip(test_heights, test_widths)]
+test_max = max(test_longest)
+test_min = min(test_longest)
+test_avg = sum(test_longest) / len(test_longest)
+
 plt.figure(figsize=(6,6))
 plt.scatter(test_widths, test_heights, c="red", alpha=0.4, s=10)
 plt.xlabel("Width (pixels)")
 plt.ylabel("Height (pixels)")
-plt.title("Test Image Resolution (Width vs Height)")
+plt.title("Test Image Size")
 plt.grid(True)
+plt.text(
+    x=max(test_widths) * 0.8, y=max(test_heights) * 0.98,
+    s=f"Max: {test_max}\nMin: {test_min}\nAvg: {test_avg:.2f}",
+    fontsize=10, color="black",
+    horizontalalignment="left", verticalalignment="top",
+    bbox=dict(facecolor="white", edgecolor="black", alpha=1.0)
+)
 plt.show()
+
+# test:
+# Max: 763
+# Min: 512
+# Avg: 595.70
 
 #%%
 # label noise check (for n*10 counts)
