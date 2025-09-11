@@ -9,11 +9,10 @@
 | ![김장원](https://avatars.githubusercontent.com/u/156163982?v=4) | ![김영](https://avatars.githubusercontent.com/u/156163982?v=4) | ![민병호](https://avatars.githubusercontent.com/u/156163982?v=4) | ![문채린](https://avatars.githubusercontent.com/u/156163982?v=4) | ![정민지](https://avatars.githubusercontent.com/u/156163982?v=4) |
 | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: |
 |            [김장원](https://github.com/jkim1209)             |            [김영](https://github.com/kimyoung9689)             |            [민병호](https://github.com/BH-Min-lab)             |            [문채린](https://github.com/CHAERINMOON)             |            [정민지](https://github.com/mingg210)             |
-|                            팀장, 담당 역할                             |                            담당 역할                             |                            담당 역할                             |                            담당 역할                             |                            담당 역할                             |
+|                            팀장, 데이터 전처리 및 모델링                             |                            데이터 전처리 및 모델링                             |                            데이터 전처리 및 VLM                             |                            데이터 전처리 및 모델링                             |                            데이터 전처리 및 모델링                             |
 
 ## 0. Overview
 
-주요 기술 스택
 모델 아키텍처: Vision Transformer (ViT) 기반 vit_base_patch16_224
 
 학습 전략: K-Fold Cross Validation
@@ -22,8 +21,12 @@
 
 최종 예측: Stacking Ensemble (Logistic Regression)
 
-환경: PyTorch, Timm, Scikit-learn, Pandas
-
+환경: 
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
+![Scikit-learn](https://img.shields.io/badge/Scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
+![timm](https://img.shields.io/badge/Timm-007396?style=for-the-badge&logo=Timm&logoColor=white)
 
 ### Environment
 
@@ -47,6 +50,8 @@
 - scipy=1.11
 - scikit-learn=1.3
 - pandas=2.1
+
+
 
 
 ## 1. Competiton Info
@@ -98,7 +103,7 @@ $$
 │   ├── test/                      # 테스트 이미지(.jpg)
 │   └── train/                     # 학습 이미지(.jpg)
 ├── model/                        # 학습된 모델 체크포인트(.pt) 및 학습 요약(.json) 저장
-│   ├── vit_base_patch16_224/      # 각 모델별로 체크포인트가 저장
+│   ├── vit_base_patch16_224/     # 각 모델별로 체크포인트가 저장
 │   │   ├── fold0_best_f1_light.pt
 │   │   └── train_summary.json     # 전체 학습 및 검증 결과 요약
 │   └── ...
@@ -128,15 +133,25 @@ $$
 
 ### Dataset overview
 
-- _Explain using data_
+- 이번 대회 데이터는 금융, 의료, 물류 등 다양한 분야의 실제 문서 이미지를 기반으로 구축되었으며, 총 17개의 클래스로 분류됩니다. 학습 데이터 1,570장, 평가 데이터 3,140장으로 구성되어 있습니다.
 
 ### EDA
 
-- _Describe your EDA process and step-by-step conclusion_
+- 데이터 탐색(EDA)을 통해 다음과 같은 특징을 발견했습니다.
+
+클래스 불균형: 특정 클래스(1, 13, 14)의 데이터 수가 매우 적은 불균형 문제를 확인했습니다.
+
+이미지 해상도: 이미지 크기는 512px에서 763px까지 다양하게 분포되어 있음을 파악했습니다.
+
+레이블 정확도: 일부 노이즈가 존재했지만, 레이블은 전반적으로 깨끗한 상태임을 확인했습니다.
 
 ### Data Processing
 
-- _Describe data processing process (e.g. Data Labeling, Data Cleaning..)_
+- 모델 학습을 위해 다음과 같은 데이터 전처리 및 증강 기법을 적용했습니다.
+
+리사이즈 및 정규화: 모든 이미지를 모델의 입력 크기에 맞게 리사이즈하고, RGB 채널별로 평균 및 표준 편차를 사용해 정규화했습니다.
+
+데이터 증강: 학습 데이터의 일반화 성능을 높이기 위해 무작위 회전, 상하좌우 반전 등 다양한 증강 기법을 적용했습니다.
 
 ## 4. Modeling
 
@@ -152,22 +167,34 @@ See `run_scripts/`
 
 ### Leader Board
 
-- _Insert Leader Board Capture_
-- _Write rank and score_
+- 최종 순위: []위
+- 최종 점수: [Test Macro F1 Score 0.9713]
+이거 7시 이후 사진으로 넣을 것
+
+여기에 EDA 단계에서 만든 클래스분포 그래프나 
+케이 폴드 교차검증 학습/평증 곡선
+or 혼동행렬그래프 넣어주면 좋을 거 같습니다.
+
+예시
+데이터셋 클래스 분포를 시각화한 그래프 (데이터 불균형을 한눈에 보여줌)
+
+최종 성능 결과를 보여주는 Confusion Matrix
+
+
 
 ### Presentation
 
-- _Insert your presentaion file(pdf) link_
+- 발표자료 링크
 
 ## etc
 
 ### Meeting Log
 
-- _Insert your meeting log link like Notion or Google Docs_
+- [_Insert your meeting log link like Notion or Google Docs_](https://github.com/orgs/AIBootcamp14/projects/25)
 
 ### Reference
 
-- _Insert related reference_
+- [_Insert related reference_](https://github.com/katsura-jp/pytorch-cosine-annealing-with-warmup/blob/master/cosine_annealing_warmup/scheduler.py)
 
 
 
@@ -191,7 +218,17 @@ conda activate base
 
 학습 및 추론 실행 예시
 
-python main.py --arch vit_base_patch16_224 --img_size 224 --n_folds 5 --use_focal --do_infer --save_oof_folds --avg logit --tta
+```
+python main.py \
+    --arch vit_base_patch16_224 \
+    --img_size 224 \
+    --n_folds 5 \
+    --use_focal \
+    --do_infer \
+    --save_oof_folds \
+    --avg logit \
+    --tta
+```
 
 --arch vit_base_patch16_224: timm 라이브러리의 ViT 기반 모델을 사용합니다.
 
@@ -213,7 +250,13 @@ python main.py --arch vit_base_patch16_224 --img_size 224 --n_folds 5 --use_foca
 main.py를 통해 생성된 OOF 파일들을 사용하여 스태킹 앙상블을 수행합니다. 이 과정은 개별 모델의 성능을 넘어 최종 예측 정확도를 극대화하는 핵심 단계입니다.
 
 # `output/oof/`에 저장된 OOF 파일들을 인자로 전달
-python ensemble.py --oof output/oof/vit_base_patch16_224_oof.csv output/oof/swinv2_base_window12to24_192to384_oof.csv --test output/test/vit_base_patch16_224_test.csv output/test/swinv2_base_window12to24_192to384_test.csv --feature both --standardize
+```
+python ensemble.py \
+    --oof output/oof/vit_base_patch16_224_oof.csv output/oof/swinv2_base_window12to24_192to384_oof.csv \
+    --test output/test/vit_base_patch16_224_test.csv output/test/swinv2_base_window12to24_192to384_test.csv \
+    --feature both \
+    --standardize
+```
 
 --oof: 학습 과정에서 생성된 OOF CSV 파일 목록을 지정합니다.
 
@@ -226,4 +269,6 @@ python ensemble.py --oof output/oof/vit_base_patch16_224_oof.csv output/oof/swin
 4. 최종 제출 파일 생성
 스태킹 앙상블로 생성된 최종 예측 CSV를 대회 제출 형식에 맞게 변환합니다.
 
+```
 python output_to_submission.py
+```
