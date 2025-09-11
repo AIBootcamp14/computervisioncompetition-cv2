@@ -180,8 +180,8 @@ for s3 in range(0, n):
 
 #%%
 # Image check of a class:class_num (count of max_cnt)
-class_num = 14
-max_cnt = 5
+class_num = 3
+max_cnt = 101
 
 cnt = 0
 for i, r in train_df.iterrows():
@@ -198,6 +198,9 @@ for i, r in train_df.iterrows():
         plt.show()
     if cnt >= max_cnt:
        break
+
+# 3 : 입 퇴원 확인서
+# 7 : (진료)확인서
 
 # %%
 # check large image (>=512px) pretrained model in timm & check img size and normalization value
