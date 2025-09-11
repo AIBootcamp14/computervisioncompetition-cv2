@@ -181,6 +181,7 @@ def infer_ensemble(models, loader, device, use_tta=False, return_proba=False, av
     return df
 
 
+
 def _resolve_test_tf_by_name(name: str, size, mean, std, interp):
     n = (name or "none").strip().lower()
     if n in {"", "none"}:
@@ -193,7 +194,6 @@ def _resolve_test_tf_by_name(name: str, size, mean, std, interp):
         return build_test_tf_doc_restore_max(size, mean, std, interpolation=interp)
     warnings.warn(f"[test preset] Unknown/unavailable '{name}', fallback to build_test_tf()", UserWarning)
     return build_test_tf(size, mean, std, interpolation=interp)
-
 
 def _coerce_to_namespace(args):
     if args is None:
@@ -289,7 +289,6 @@ def _select_stage2_indices(proba_stage1, args):
 def run_inference(args=None):
     set_seed(42)
     args = _coerce_to_namespace(args)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     arch_dir = f"{args.arch}_{args.img_size}"
@@ -397,6 +396,6 @@ def run_inference(args=None):
     final_df.to_csv(out_csv, index=False)
     print(f"Saved: {out_csv}")
 
-
+          
 if __name__ == "__main__":
     run_inference()

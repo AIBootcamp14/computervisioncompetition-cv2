@@ -412,6 +412,7 @@ baseline.ipynb
 *.jpg
 *.png
 
+
 # raw data
 meta.csv
 sample_submission.csv

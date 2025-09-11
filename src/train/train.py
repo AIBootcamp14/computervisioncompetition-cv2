@@ -44,7 +44,7 @@ def seed_worker(worker_id):
     except Exception:
         pass
 
-
+      
 def _resolve_img_size(model, user_opt):
     data_cfg = resolve_model_data_config(model)
     _, in_h, in_w = data_cfg['input_size']
@@ -192,7 +192,7 @@ def validate(model, loader, criterion, device, logit_adj=None):
     f1 = macro_f1(all_true, all_pred)
     return avg_loss, f1
 
-
+  
 @dataclass
 class StopperResult:
     is_new_best: bool
@@ -435,7 +435,6 @@ def run_train(
         )
 
         valid_ds = ImgDataset(va_df, tf_base=valid_tf_local, tf_heavy=None, base_dir="data/train")
-
         valid_ds_robust = ImgDataset(va_df, tf_base=valid_tf_robust, tf_heavy=None, base_dir="data/train")
         valid_ds_robust = CachedDataset(valid_ds_robust)
 
