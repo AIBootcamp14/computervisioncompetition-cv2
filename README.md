@@ -15,7 +15,7 @@
 
 ## 0. Overview
 
-모델 아키텍처: 본 솔루션은 ViT 기반 아키텍처(vit_base_patch16_224)를 중심으로, 클래스별 맞춤 증강·불균형 보정·2-Stage 추론을 결합해 Macro F1 기준 최고 성능을 달성했습니다.
+모델 아키텍처: 본 솔루션은 ViT 기반 아키텍처(vit_base_patch16_siglip_512)를 중심으로, 클래스별 맞춤 증강·불균형 보정·2-Stage 추론을 결합해 Macro F1 기준 최고 성능을 달성했습니다.
 
 학습 전략: 클래스 불균형 보정 + CosineAnnealingWarmup 최적화 + Clean/Robust 검증 + 2-Stage 라우팅 추론
 
