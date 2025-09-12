@@ -410,6 +410,8 @@ baseline.ipynb
 
 # image files
 *.jpg
+*.png
+
 
 # raw data
 meta.csv
@@ -419,8 +421,19 @@ train.csv
 # large files
 # zip file
 data.tar.gz
+*.zip
 
 # output files
-output/*.csv
+*.csv
+
+# models
+*.pt
+train_summary.json
+
+# wandb
+wandb/*
+
+# bash files
+run_scripts/*
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,python,visualstudiocode,git,jupyternotebooks,pycharm
