@@ -102,12 +102,12 @@ $$
 ```txt
 .
 ├── data
-│   ├── noisy               # src/data/EDA_mismatch.py 로 확인한 잘못 예측한 이미지 파일 저장
-│   ├── test                # test 이미지 파일 저장
-│   └── train               # train 이미지 파일 저장
-├── img                     # EDA 결과 및 필요한 이미지 파일 저장
-├── logs                    # run_scripts 배쉬 파일 실행 로그 저장
-├── model                   # 각 모델 디렉토리 안에 fold별 .pt 파일 및 train_summary.json 저장
+│   ├── noisy                   # src/data/EDA_mismatch.py 로 확인한 잘못 예측한 이미지 파일 저장
+│   ├── test                    # test 이미지 파일 저장
+│   └── train                   # train 이미지 파일 저장
+├── img                         # EDA 결과 및 필요한 이미지 파일 저장
+├── logs                        # run_scripts 배쉬 파일 실행 로그 저장
+├── model                       # 각 모델 디렉토리 안에 fold별 .pt 파일 및 train_summary.json 저장
 │   ├── convnext_base.fb_in22k_ft_in1k_384_auto     
 │   ├── efficientnet_b4.ra2_in1k_auto
 │   ├── maxvit_base_tf_512.in21k_ft_in1k_auto
@@ -115,10 +115,10 @@ $$
 │   ├── vit_base_patch14_dinov2.lvd142m_auto
 │   ├── vit_base_patch16_siglip_512.webli_auto
 │   └── ...
-├── output                  # 결과물 .csv 파일 저장
-│   └── oof                 # OOF .csv 파일 저장
-├── run_scripts             # 실행 명령어 .sh 파일 저장
-├── src                     # 스크립트 .py 파일 저장
+├── output                      # 결과물 .csv 파일 저장
+│   └── oof                     # OOF .csv 파일 저장
+├── run_scripts                 # 실행 명령어 .sh 파일 저장
+├── src                         # 스크립트 .py 파일 저장
 │   ├── data
 │   │   ├── EDA.py
 │   │   ├── EDA_mismatch.py
@@ -132,11 +132,14 @@ $$
 │   │   └── inference.py
 │   ├── main.py
 │   ├── output_to_submission.py
-│   └── train
-│       ├── correct_minor_classes.py
-│       ├── schedulers.py
-│       └── train.py
-└── wandb                   # wandb 파일 저장
+│   │── train
+│   │   ├── correct_minor_classes.py
+│   │   ├── schedulers.py
+│   │   └── train.py
+│   └── vlm                     # VLM 파이프라인
+        ├── data_08.py
+│       └── test_14_qwen2.5.py
+└── wandb                       # wandb 파일 저장
     ├── latest-run
     └── ...
 ```
