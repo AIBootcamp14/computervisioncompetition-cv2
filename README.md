@@ -258,7 +258,7 @@ flowchart TD
 | Blend | 1.0 = Stage-2만, 0.5 = 동등 블렌드, 0 = Stage-1 유지 |
 
 
-### VLM
+### 기타 시도한 모델: VLM
 
 - **모델 종류**  
   - llava-1.5-7b
