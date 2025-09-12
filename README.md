@@ -10,7 +10,7 @@
 
 | ![김장원](https://avatars.githubusercontent.com/u/128503571?v=4&s=200) | ![김영](https://avatars.githubusercontent.com/u/213391898?v=4&s=200) | ![민병호](https://avatars.githubusercontent.com/u/213389909?s=200&u=637057beaf59c03a304331ca2c5838c029195669&v=4) | ![문채린](https://avatars.githubusercontent.com/u/213385368?s=200&u=199e83da989abfc5387e2b64c00751a77bb5c6cc&v=4) | ![정민지](https://avatars.githubusercontent.com/u/208557619?s=200&v=4) |
 | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: |
-|            ![GitHub](https://img.shields.io/badge/GitHub-김장원👑-181717?style=&logo=github&logoColor=white&link=https://github.com/jkim1209)             |            [![GitHub](https://img.shields.io/badge/GitHub-김영-181717?style=flat&logo=github&logoColor=white)](https://github.com/kimyoung9689)            |            [![GitHub](https://img.shields.io/badge/GitHub-민병호-181717?style=flat&logo=github&logoColor=white)](https://github.com/BH-Min-lab)            |            [![GitHub](https://img.shields.io/badge/GitHub-문채린-181717?style=flat&logo=github&logoColor=white)](https://github.com/CHAERINMOON)             |            [![GitHub](https://img.shields.io/badge/GitHub-정민지-181717?style=flat&logo=github&logoColor=white)](https://github.com/mingg210)          |
+|            [![GitHub](https://img.shields.io/badge/GitHub-김장원👑-181717?style=&logo=github&logoColor=white)](https://github.com/jkim1209)          |            [![GitHub](https://img.shields.io/badge/GitHub-김영-181717?style=flat&logo=github&logoColor=white)](https://github.com/kimyoung9689)            |            [![GitHub](https://img.shields.io/badge/GitHub-민병호-181717?style=flat&logo=github&logoColor=white)](https://github.com/BH-Min-lab)            |            [![GitHub](https://img.shields.io/badge/GitHub-문채린-181717?style=flat&logo=github&logoColor=white)](https://github.com/CHAERINMOON)             |            [![GitHub](https://img.shields.io/badge/GitHub-정민지-181717?style=flat&logo=github&logoColor=white)](https://github.com/mingg210)          |
 |                            팀장, 데이터 전처리 및 모델링                             |                            데이터 전처리 및 모델링                             |                            데이터 전처리 및 VLM                             |                            데이터 전처리 및 모델링                             |                            데이터 전처리 및 모델링                             |
 
 ## 0. Overview
@@ -256,6 +256,30 @@ flowchart TD
 | Routing 기준 | entropy / margin / sum / pred |
 | Gate | default = 0.60, Stage-2 샘플 수 제한(`stage2_limit`) 가능 |
 | Blend | 1.0 = Stage-2만, 0.5 = 동등 블렌드, 0 = Stage-1 유지 |
+
+
+### VLM
+
+- **모델 종류**  
+  - llava-1.5-7b
+  - Qwen2.5-VL-7B 및 32B
+  - InternVL2-8B
+
+- **적용방법**  
+  - NF4방식의 4bit 양자화
+  - 오프로딩으로 메모리 활용
+
+- **한계점**  
+  - 모델의 크기 및 종류에 따라 성능에 편차가 있으며, 프롬프트 디자인이 큰 영향을 미침
+  - 모델이 한국어와 문서인식이 가능해야 하며, 문서분류를 위해 해당 단어가 어떤 분류에 속하는지 언어적 이해도가 바탕이 되어야 함
+  - 양자화 압축과정에서 이미지의 흐릿한 경계의 정보 손실 가능성
+  - 작은 토큰 크기에 따른 활용 제약
+  - VLM 모델들의 앙상블도 가능하나 시스템 제약이 큼
+  - 한국어 문서로 파인튜닝도 가능하나 시스템 제약이 큼
+ 
+- **발전가능성**  
+  - 시스템 리소스가 충분하다면 모델에게 분류하지 못한 이유와 개선책을 직접 물어보고 피드백을 받으며 자체 발전 순환고리를 만들 수 있음
+
 
 ---
 
