@@ -4,9 +4,24 @@
 
 특히, 모델의 일반화 성능을 극대화하고 최종 예측 정확도를 끌어올리기 위한 앙상블 및 스태킹 기법에 중점을 두어 개발되었습니다.
 
+> **발표 자료:** [Google Slides](https://docs.google.com/presentation/d/10o12igXX3xXg1zpI-M4KdHMrxI4OToEL/edit?slide=id.p5#slide=id.p5)
+
 ---
 
-## 2조 팀원 소개
+## 📚 Table of Contents
+- [팀 구성원](#팀-구성원)
+- [0. Overview](#0-overview)
+- [1. Competiton Info](#1-competiton-info)
+- [2. Components](#2-components)
+- [3. Data descrption](#3-data-descrption)
+- [4. Modeling](#4-modeling)
+- [5. Result](#5-result)
+- [6. How to Run](#6-how-to-run)
+- [ETC](#etc)
+
+---
+
+## 팀 구성원
 
 | ![김장원](https://avatars.githubusercontent.com/u/128503571?v=4&s=200) | ![김영](https://avatars.githubusercontent.com/u/213391898?v=4&s=200) | ![민병호](https://avatars.githubusercontent.com/u/213389909?s=200&u=637057beaf59c03a304331ca2c5838c029195669&v=4) | ![문채린](https://avatars.githubusercontent.com/u/213385368?s=200&u=199e83da989abfc5387e2b64c00751a77bb5c6cc&v=4) | ![정민지](https://avatars.githubusercontent.com/u/208557619?s=200&v=4) |
 | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: |
@@ -326,11 +341,6 @@ flowchart TD
   <img src="https://github.com/user-attachments/assets/37e32746-ce48-4218-a2eb-b7677541d901" alt="robust_valid_loss" width="49%">
   <img src="https://github.com/user-attachments/assets/ea94f40d-d814-4332-b66b-c4b60b4878e4" alt="robust_valid_f1" width="49%">
 
-
-### Presentation
-
-- [Google Slides](https://docs.google.com/presentation/d/10o12igXX3xXg1zpI-M4KdHMrxI4OToEL/edit?slide=id.p5#slide=id.p5)
-
 ---
 
 ## 6. How to Run 
@@ -453,7 +463,9 @@ python -m src.ensemble \
 - [SigLIP paper](https://arxiv.org/abs/2303.15343)  
 - [Weights & Biases (W&B)](https://docs.wandb.ai/)  
 
-### Acknowledgement
+---
+
+## Acknowledgement
+
 본 프로젝트는 Upstage AI Lab 14기 교육 과정의 일환으로 진행되었으며, 팀원들의 협업과 피드백을 통해 완성되었습니다.
 
----
